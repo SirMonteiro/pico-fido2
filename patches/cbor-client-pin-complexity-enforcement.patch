@@ -1,0 +1,189 @@
+--- pico-fido/src/fido/cbor_client_pin.c	2026-05-13 12:34:27.582249768 -0300
++++ cbor_client_pin.c	2026-05-13 12:37:57.689983258 -0300
+@@ -1,4 +1,21 @@
+ /*
++ * Copyright (c) 2026 SirMonteiro.
++ * Modification:
++ * - Change Alphanumeric PIN requirement from 10 to 8.
++ * - Refactor to build with 7.6.
++*/
++
++/*
++ * Copyright (c) 2025 Token2 Sàrl.
++ * Modifications:
++ * - Added PIN complexity enforcement in setPIN (0x03) and changePIN (0x04).
++ * - New rules:
++ *     • Numeric PINs: minimum length 6, reject sequential, repeated, palindromic, or over-repetitive patterns.
++ *     • Alphanumeric PINs: minimum length 10, must include at least 2 character categories
++ *       (digits, uppercase, lowercase, special).
++ */
++
++/*
+  * This file is part of the Pico FIDO distribution (https://github.com/polhenarejos/pico-fido).
+  * Copyright (c) 2022 Pol Henarejos.
+  *
+@@ -20,6 +37,7 @@
+ #include "mbedtls/ecdh.h"
+ #include "mbedtls/sha256.h"
+ #include "mbedtls/hkdf.h"
++#include "mbedtls/constant_time.h"
+ #include "cbor.h"
+ #include "ctap.h"
+ #include "ctap2_cbor.h"
+@@ -221,10 +239,10 @@
+         return ret;
+     }
+     if (protocol == 1) {
+-        return ct_memcmp(sign, hmac, 16);
++        return mbedtls_ct_memcmp(sign, hmac, 16);
+     }
+     else if (protocol == 2) {
+-        return ct_memcmp(sign, hmac, 32);
++        return mbedtls_ct_memcmp(sign, hmac, 32);
+     }
+     return -1;
+ }
+@@ -273,6 +291,86 @@
+ 
+ uint8_t new_pin_mismatches = 0;
+ 
++// --- PIN Complexity Helpers ---
++static bool is_sequential(const uint8_t *pin, size_t pin_len) {
++    for (size_t i = 1; i < pin_len; i++) {
++        if (pin[i] != pin[i-1] + 1) {
++            return false;
++        }
++    }
++    return true;
++}
++static bool is_repeated(const uint8_t *pin, size_t pin_len) {
++    uint8_t first = pin[0];
++    for (size_t i = 1; i < pin_len; i++) {
++        if (pin[i] != first) {
++            return false;
++        }
++    }
++    return true;
++}
++static bool is_palindrome(const uint8_t *pin, size_t pin_len) {
++    for (size_t i = 0; i < pin_len / 2; i++) {
++        if (pin[i] != pin[pin_len - 1 - i]) {
++            return false;
++        }
++    }
++    return true;
++}
++static bool has_excessive_repeats(const uint8_t *pin, size_t pin_len) {
++    for (size_t i = 0; i < pin_len - 2; i++) {
++        if (pin[i] == pin[i+1] && pin[i] == pin[i+2]) {
++            return true;
++        }
++    }
++    return false;
++}
++static int check_pin_complexity(const uint8_t *pin, size_t pin_len) {
++    bool has_digit = false, has_upper = false, has_lower = false, has_special = false;
++    bool is_all_digits = true;
++    for (size_t i = 0; i < pin_len; i++) {
++        if (pin[i] >= '0' && pin[i] <= '9') {
++            has_digit = true;
++        } else if (pin[i] >= 'A' && pin[i] <= 'Z') {
++            has_upper = true;
++            is_all_digits = false;
++        } else if (pin[i] >= 'a' && pin[i] <= 'z') {
++            has_lower = true;
++            is_all_digits = false;
++        } else {
++            has_special = true;
++            is_all_digits = false;
++        }
++    }
++    if (is_all_digits) {
++        if (pin_len < 6) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++        if (is_sequential(pin, pin_len)) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++        if (is_repeated(pin, pin_len)) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++        if (is_palindrome(pin, pin_len)) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++        if (has_excessive_repeats(pin, pin_len)) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++    } else {
++        if (pin_len < 8) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++        int categories = (has_digit ? 1 : 0) + (has_upper ? 1 : 0) +
++                         (has_lower ? 1 : 0) + (has_special ? 1 : 0);
++        if (categories < 2) {
++            return CTAP2_ERR_PIN_POLICY_VIOLATION;
++        }
++    }
++    return 0;
++}
++
+ int cbor_client_pin(const uint8_t *data, size_t len) {
+     size_t resp_size = 0;
+     uint64_t subcommand = 0x0, pinUvAuthProtocol = 0, permissions = 0;
+@@ -399,7 +497,13 @@
+         while (paddedNewPin[pin_len] != 0 && pin_len < sizeof(paddedNewPin)) {
+             pin_len++;
+         }
+-        uint8_t minPin = 4;
++        // --- Check PIN Complexity ---
++        ret = check_pin_complexity(paddedNewPin, pin_len);
++        if (ret != 0)
++        {
++          CBOR_ERROR(ret);
++        }
++        uint8_t minPin = 8; // Follow Yubico default
+         file_t *ef_minpin = file_search_by_fid(EF_MINPINLEN, NULL, SPECIFY_EF);
+         if (file_has_data(ef_minpin)) {
+             minPin = *file_get_data(ef_minpin);
+@@ -491,7 +595,7 @@
+             pin_derive_verifier(paddedNewPin, 16, dhash);
+         }
+ 
+-        if (ct_memcmp(dhash, file_get_data(ef_pin) + off, 32) != 0) {
++        if (mbedtls_ct_memcmp(dhash, file_get_data(ef_pin) + off, 32) != 0) {
+             regenerate();
+             mbedtls_platform_zeroize(sharedSecret, sizeof(sharedSecret));
+             if (retries == 0) {
+@@ -540,7 +644,13 @@
+         while (paddedNewPin[pin_len] != 0 && pin_len < sizeof(paddedNewPin)) {
+             pin_len++;
+         }
+-        uint8_t minPin = 4;
++        // --- Check PIN Complexity ---
++        ret = check_pin_complexity(paddedNewPin, pin_len);
++        if (ret != 0)
++        {
++          CBOR_ERROR(ret);
++        }
++        uint8_t minPin = 8; // Follow Yubico default
+         file_t *ef_minpin = file_search_by_fid(EF_MINPINLEN, NULL, SPECIFY_EF);
+         if (file_has_data(ef_minpin)) {
+             minPin = *file_get_data(ef_minpin);
+@@ -569,7 +679,7 @@
+         pin_data[2] = 1; // New format indicator
+         pin_derive_verifier(dhash, 16, pin_data + 3);
+ 
+-        if (file_has_data(ef_minpin) && file_get_data(ef_minpin)[1] == 1 && ct_memcmp(pin_data + 3, file_get_data(ef_pin) + 3, 32) == 0) {
++        if (file_has_data(ef_minpin) && file_get_data(ef_minpin)[1] == 1 && mbedtls_ct_memcmp(pin_data + 3, file_get_data(ef_pin) + 3, 32) == 0) {
+             CBOR_ERROR(CTAP2_ERR_PIN_POLICY_VIOLATION);
+         }
+         file_put_data(ef_pin, pin_data, sizeof(pin_data));
+@@ -652,7 +762,7 @@
+         else {
+             pin_derive_verifier(paddedNewPin, 16, dhash);
+         }
+-        if (ct_memcmp(dhash, file_get_data(ef_pin) + off, 32) != 0) {
++        if (mbedtls_ct_memcmp(dhash, file_get_data(ef_pin) + off, 32) != 0) {
+             regenerate();
+             mbedtls_platform_zeroize(sharedSecret, sizeof(sharedSecret));
+             mbedtls_platform_zeroize(dhash, sizeof(dhash));

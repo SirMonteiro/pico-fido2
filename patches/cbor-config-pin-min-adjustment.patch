@@ -1,0 +1,11 @@
+--- pico-fido/src/fido/cbor_config.c	2026-05-13 00:38:32.462092528 -0300
++++ cbor_config.c	2026-05-13 12:52:27.743456704 -0300
+@@ -214,7 +214,7 @@
+         goto err;
+     }
+     else if (subcommand == 0x03) {
+-        uint8_t currentMinPinLen = 4;
++        uint8_t currentMinPinLen = 8;
+         file_t *ef_minpin = file_search_by_fid(EF_MINPINLEN, NULL, SPECIFY_EF);
+         if (file_has_data(ef_minpin)) {
+             currentMinPinLen = *file_get_data(ef_minpin);

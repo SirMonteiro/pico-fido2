@@ -80,11 +80,21 @@ configure_bool_option(
     "OTP Application: \t\t disabled"
 )
 
+# Allow overriding WCID from the cmake command line: -DUSB_ITF_WCID=0
+option(USB_ITF_WCID "Enable/disable Microsoft OS 2.0 WCID interface (set -DUSB_ITF_WCID=0 to disable)" ON)
+
+
 if(ENABLE_OTP_APP OR ENABLE_OATH_APP)
     set(USB_ITF_CCID 1)
-    set(USB_ITF_WCID 1)
+    if(USB_ITF_WCID)
+        add_compile_definitions(USB_ITF_WCID)
+        message(STATUS "WCID interface: \t\t enabled")
+    else()
+        message(STATUS "WCID interface: \t\t disabled")
+    endif()
 else()
     set(USB_ITF_CCID 0)
+    message(STATUS "WCID interface: \t\t disabled")
 endif()
 
 set(USB_ITF_HID 1)

@@ -1,0 +1,10 @@
+--- pico-fido/tests/pico-fido/test_037_minpinlength.py	2026-05-13 13:24:59.897269850 -0300
++++ test_037_minpinlength.py	2026-05-13 13:24:43.847311472 -0300
+@@ -61,6 +61,7 @@
+     assert info.options
+     assert 'setMinPINLength' in info.options
+     assert info.options['setMinPINLength'] is True
++    assert info[0x0D] == 8
+ 
+ def test_minpin(SetMinPin, MCMinPin):
+     assert MCMinPin.auth_data.extensions

@@ -1,0 +1,11 @@
+--- pico-fido/src/fido/cbor_get_info.c	2026-05-13 13:24:59.897168374 -0300
++++ cbor_get_info.c	2026-05-13 13:24:43.847311472 -0300
+@@ -157,7 +157,7 @@
+         CBOR_CHECK(cbor_encode_uint(&mapEncoder, *file_get_data(ef_minpin))); // minPINLength
+     }
+     else {
+-        CBOR_CHECK(cbor_encode_uint(&mapEncoder, 4)); // minPINLength
++        CBOR_CHECK(cbor_encode_uint(&mapEncoder, 8)); // minPINLength
+ 
+     }
+     CBOR_CHECK(cbor_encode_uint(&mapEncoder, 0x0E));
