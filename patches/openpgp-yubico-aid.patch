@@ -1,0 +1,11 @@
+--- pico-openpgp/src/openpgp/openpgp.c	2026-05-12 21:46:51.184745689 -0300
++++ pico-openpgp/src/openpgp/openpgp.c.patch	2026-05-12 21:51:04.013878813 -0300
+@@ -52,7 +52,7 @@
+ uint8_t openpgp_aid_full[] = {
+     16, 00,
+     0xD2, 0x76, 0x00, 0x01, 0x24, 0x01,
+-    OPGP_VERSION_MAJOR, OPGP_VERSION_MINOR, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00
++    OPGP_VERSION_MAJOR, OPGP_VERSION_MINOR, 0x00, 0x06, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00
+ };
+ 
+ char atr_openpgp[] = {

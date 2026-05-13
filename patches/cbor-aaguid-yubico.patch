@@ -1,0 +1,14 @@
+--- pico-fido/src/fido/cbor.c	2026-05-12 22:00:12.323484107 -0300
++++ pico-fido/src/fido/cbor.c.patch	2026-05-12 22:15:03.568091478 -0300
+@@ -32,7 +32,10 @@
+ 
+ int cbor_get_assertion(const uint8_t *data, size_t len, bool next);
+ 
+-const uint8_t aaguid[16] = { 0x89, 0xFB, 0x94, 0xB7, 0x06, 0xC9, 0x36, 0x73, 0x9B, 0x7E, 0x30, 0x52, 0x6D, 0x96, 0x81, 0x45 }; // First 16 bytes of SHA256("Pico FIDO2")
++const uint8_t aaguid[16] = {
++    0xee, 0x88, 0x28, 0x79, 0x72, 0x1c, 0x49, 0x13,
++    0x97, 0x75, 0x3d, 0xfc, 0xce, 0x97, 0x07, 0x2a
++};  // First 16 bytes of SHA256: ee882879-721c-4913-9775-3dfcce97072a (YubiKey 5 (USB-A, No NFC))
+ 
+ const uint8_t *cbor_data = NULL;
+ size_t cbor_len = 0;

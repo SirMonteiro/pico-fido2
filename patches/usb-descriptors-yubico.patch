@@ -1,0 +1,40 @@
+--- pico-keys-sdk/src/usb/usb_descriptors.c	2026-05-12 22:00:13.012338694 -0300
++++ usb_descriptors.c	2026-05-12 22:23:04.596292782 -0300
+@@ -60,7 +60,7 @@
+ 
+     .iManufacturer      = 1,
+     .iProduct           = 2,
+-    .iSerialNumber      = 3,
++    .iSerialNumber      = 0,
+ 
+     .bNumConfigurations = 1
+ };
+@@ -231,7 +231,7 @@
+   VENDOR_REQUEST_WEBUSB = 1,
+   VENDOR_REQUEST_MICROSOFT = 2
+ };
+-#define URL  "www.picokeys.com"
++#define URL  "pico.gabrielsouza.top"
+ static bool web_serial_connected = false;
+ 
+ const tusb_desc_webusb_url_t desc_url =
+@@ -347,15 +347,15 @@
+ char *string_desc_itf[5] = {0};
+ char const *string_desc_arr [] = {
+     (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
+-    "Pol Henarejos",                     // 1: Manufacturer
+-    "Pico Key",                       // 2: Product
+-    "11223344",                      // 3: Serials, should use chip ID
++    "Yubico",                     // 1: Manufacturer
++    "YubiKey",                       // 2: Product
++    "",                      // 3: Serials, should use chip ID
+     "Config",               // 4: Vendor Interface
+     "MAC"                   // 5: MAC address string, handled separately
+     , "HID Interface"
+     , "HID Keyboard Interface"
+ #ifdef USB_ITF_HID
+-    , "CCID OTP FIDO Interface"
++    , "OTP+FIDO+CCID Interface"
+ #else
+     , "CCID Interface"
+ #endif
