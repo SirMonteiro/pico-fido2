@@ -3,7 +3,6 @@
 VERSION_MAJOR="7"
 VERSION_MINOR="6"
 ENABLE_EDDSA=1
-USB_ITF_WCID=0
 SUFFIX="${VERSION_MAJOR}.${VERSION_MINOR}"
 #if ! [[ -z "${GITHUB_SHA}" ]]; then
 #    SUFFIX="${SUFFIX}.${GITHUB_SHA}"
@@ -20,7 +19,7 @@ boards=("pico2" "tenstar_usb")
 
 for board in "${boards[@]}"
 do
-    PICO_SDK_PATH="${PICO_SDK_PATH}" cmake .. -DPICO_BOARD=$board -DSECURE_BOOT_PKEY=${SECURE_BOOT_PKEY} -DENABLE_EDDSA=${ENABLE_EDDSA} -DUSB_ITF_WCID=${USB_ITF_WCID} -DVIDPID=Yubikey5
+    PICO_SDK_PATH="${PICO_SDK_PATH}" cmake .. -DPICO_BOARD=$board -DSECURE_BOOT_PKEY=${SECURE_BOOT_PKEY} -DENABLE_EDDSA=${ENABLE_EDDSA} -DVIDPID=Yubikey5
     make -j`nproc`
     cp pico_fido2.uf2 ../release/pico_fido2_$board-$SUFFIX.uf2
 done

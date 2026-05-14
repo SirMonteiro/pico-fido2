@@ -19,7 +19,6 @@ cmake_minimum_required(VERSION 3.13)
 
 set(USB_VID 0x2E8A)
 set(USB_PID 0x10FE)
-set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_LIST_DIR})
 
 if(ESP_PLATFORM)
     if(NOT DEFINED ENABLE_POWER_ON_RESET)
@@ -81,21 +80,11 @@ configure_bool_option(
     "OTP Application: \t\t disabled"
 )
 
-# Allow overriding WCID from the cmake command line: -DUSB_ITF_WCID=0
-option(USB_ITF_WCID "Enable/disable Microsoft OS 2.0 WCID interface (set -DUSB_ITF_WCID=0 to disable)" ON)
-
-
 if(ENABLE_OTP_APP OR ENABLE_OATH_APP)
     set(USB_ITF_CCID 1)
-    if(USB_ITF_WCID)
-        add_compile_definitions(USB_ITF_WCID)
-        message(STATUS "WCID interface: \t\t enabled")
-    else()
-        message(STATUS "WCID interface: \t\t disabled")
-    endif()
+    set(USB_ITF_WCID 1)
 else()
     set(USB_ITF_CCID 0)
-    message(STATUS "WCID interface: \t\t disabled")
 endif()
 
 set(USB_ITF_HID 1)
