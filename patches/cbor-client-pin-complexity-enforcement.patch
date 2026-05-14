@@ -1,12 +1,12 @@
---- pico-fido/src/fido/cbor_client_pin.c	2026-05-13 12:34:27.582249768 -0300
-+++ cbor_client_pin.c	2026-05-13 12:37:57.689983258 -0300
+--- pico-fido/src/fido/cbor_client_pin.c	2026-05-14 18:59:08.482978031 -0300
++++ pico-fido/src/fido/cbor_client_pin.c.after	2026-05-14 18:58:02.744714911 -0300
 @@ -1,4 +1,21 @@
  /*
 + * Copyright (c) 2026 SirMonteiro.
 + * Modification:
-+ * - Change Alphanumeric PIN requirement from 10 to 8.
++ * - Change PIN complexity enforcement to a stricter one.
 + * - Refactor to build with 7.6.
-+*/
++ */
 +
 +/*
 + * Copyright (c) 2025 Token2 Sàrl.
@@ -43,47 +43,62 @@
      }
      return -1;
  }
-@@ -273,6 +291,86 @@
+@@ -273,6 +291,95 @@
  
  uint8_t new_pin_mismatches = 0;
  
 +// --- PIN Complexity Helpers ---
 +static bool is_sequential(const uint8_t *pin, size_t pin_len) {
++    if (pin_len < 2) return false;
++
++    bool ascending = true;
++    bool descending = true;
++
 +    for (size_t i = 1; i < pin_len; i++) {
 +        if (pin[i] != pin[i-1] + 1) {
-+            return false;
++            ascending = false;
++        }
++        if (pin[i] != pin[i-1] - 1) {
++            descending = false;
 +        }
 +    }
-+    return true;
++    return ascending || descending;
 +}
++
 +static bool is_repeated(const uint8_t *pin, size_t pin_len) {
++    if (pin_len < 2) return false;
 +    uint8_t first = pin[0];
 +    for (size_t i = 1; i < pin_len; i++) {
-+        if (pin[i] != first) {
-+            return false;
-+        }
++        if (pin[i] != first) return false;
 +    }
 +    return true;
 +}
++
 +static bool is_palindrome(const uint8_t *pin, size_t pin_len) {
++    if (pin_len <= 1) return true;
 +    for (size_t i = 0; i < pin_len / 2; i++) {
-+        if (pin[i] != pin[pin_len - 1 - i]) {
-+            return false;
-+        }
++        if (pin[i] != pin[pin_len - 1 - i]) return false;
 +    }
 +    return true;
 +}
++
 +static bool has_excessive_repeats(const uint8_t *pin, size_t pin_len) {
++    if (pin_len < 3) return false;
 +    for (size_t i = 0; i < pin_len - 2; i++) {
-+        if (pin[i] == pin[i+1] && pin[i] == pin[i+2]) {
-+            return true;
-+        }
++        if (pin[i] == pin[i+1] && pin[i] == pin[i+2]) return true;
 +    }
 +    return false;
 +}
++
 +static int check_pin_complexity(const uint8_t *pin, size_t pin_len) {
++    if (!pin || pin_len == 0) {
++        return CTAP2_ERR_PIN_POLICY_VIOLATION;
++    }
++
 +    bool has_digit = false, has_upper = false, has_lower = false, has_special = false;
 +    bool is_all_digits = true;
++
++    // Character Analysis
 +    for (size_t i = 0; i < pin_len; i++) {
 +        if (pin[i] >= '0' && pin[i] <= '9') {
 +            has_digit = true;
@@ -98,54 +113,46 @@
 +            is_all_digits = false;
 +        }
 +    }
++
++    // Length & Category Rules
 +    if (is_all_digits) {
-+        if (pin_len < 6) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
-+        if (is_sequential(pin, pin_len)) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
-+        if (is_repeated(pin, pin_len)) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
-+        if (is_palindrome(pin, pin_len)) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
-+        if (has_excessive_repeats(pin, pin_len)) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
++        if (pin_len < 6) return CTAP2_ERR_PIN_POLICY_VIOLATION;
 +    } else {
-+        if (pin_len < 8) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
++        if (pin_len < 8) return CTAP2_ERR_PIN_POLICY_VIOLATION;
++
 +        int categories = (has_digit ? 1 : 0) + (has_upper ? 1 : 0) +
 +                         (has_lower ? 1 : 0) + (has_special ? 1 : 0);
-+        if (categories < 2) {
-+            return CTAP2_ERR_PIN_POLICY_VIOLATION;
-+        }
++        if (categories < 2) return CTAP2_ERR_PIN_POLICY_VIOLATION;
 +    }
++
++    // Structural Rules
++    if (is_sequential(pin, pin_len) ||
++        is_repeated(pin, pin_len) ||
++        is_palindrome(pin, pin_len) ||
++        has_excessive_repeats(pin, pin_len)) {
++        return CTAP2_ERR_PIN_POLICY_VIOLATION;
++    }
++
 +    return 0;
 +}
 +
  int cbor_client_pin(const uint8_t *data, size_t len) {
      size_t resp_size = 0;
      uint64_t subcommand = 0x0, pinUvAuthProtocol = 0, permissions = 0;
-@@ -399,7 +497,13 @@
+@@ -399,6 +506,12 @@
          while (paddedNewPin[pin_len] != 0 && pin_len < sizeof(paddedNewPin)) {
              pin_len++;
          }
--        uint8_t minPin = 4;
 +        // --- Check PIN Complexity ---
 +        ret = check_pin_complexity(paddedNewPin, pin_len);
 +        if (ret != 0)
 +        {
 +          CBOR_ERROR(ret);
 +        }
-+        uint8_t minPin = 8; // Follow Yubico default
+         uint8_t minPin = 4;
          file_t *ef_minpin = file_search_by_fid(EF_MINPINLEN, NULL, SPECIFY_EF);
          if (file_has_data(ef_minpin)) {
-             minPin = *file_get_data(ef_minpin);
-@@ -491,7 +595,7 @@
+@@ -491,7 +604,7 @@
              pin_derive_verifier(paddedNewPin, 16, dhash);
          }
  
@@ -154,22 +161,20 @@
              regenerate();
              mbedtls_platform_zeroize(sharedSecret, sizeof(sharedSecret));
              if (retries == 0) {
-@@ -540,7 +644,13 @@
+@@ -540,6 +653,12 @@
          while (paddedNewPin[pin_len] != 0 && pin_len < sizeof(paddedNewPin)) {
              pin_len++;
          }
--        uint8_t minPin = 4;
 +        // --- Check PIN Complexity ---
 +        ret = check_pin_complexity(paddedNewPin, pin_len);
 +        if (ret != 0)
 +        {
 +          CBOR_ERROR(ret);
 +        }
-+        uint8_t minPin = 8; // Follow Yubico default
+         uint8_t minPin = 4;
          file_t *ef_minpin = file_search_by_fid(EF_MINPINLEN, NULL, SPECIFY_EF);
          if (file_has_data(ef_minpin)) {
-             minPin = *file_get_data(ef_minpin);
-@@ -569,7 +679,7 @@
+@@ -569,7 +688,7 @@
          pin_data[2] = 1; // New format indicator
          pin_derive_verifier(dhash, 16, pin_data + 3);
  
@@ -178,7 +183,7 @@
              CBOR_ERROR(CTAP2_ERR_PIN_POLICY_VIOLATION);
          }
          file_put_data(ef_pin, pin_data, sizeof(pin_data));
-@@ -652,7 +762,7 @@
+@@ -652,7 +771,7 @@
          else {
              pin_derive_verifier(paddedNewPin, 16, dhash);
          }
