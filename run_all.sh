@@ -8,5 +8,5 @@ for f in patches/*.patch; do
   patch -bNp0 < "$f"
 done
 
-ln -s ../pico-sdk/src/boards/include/boards/tenstar_usb.h .
+ln -s tenstar_usb.h ../pico-sdk/src/boards/include/boards/
 
