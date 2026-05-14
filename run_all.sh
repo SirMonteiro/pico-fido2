@@ -3,5 +3,10 @@
 git submodule update --init --recursive
 
 source ./keygen.sh
-patch -bNp0 < patches/*.patch
+
+for f in patches/*.patch; do
+  patch -bNp0 < "$f"
+done
+
+ln -s ../pico-sdk/src/boards/include/boards/tenstar_usb.h .
 
